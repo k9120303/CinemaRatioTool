@@ -9,7 +9,7 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
-            --edge: 20px; /* Symmetrical edge offset */
+            --edge: 20px;
         }
 
         body, html {
@@ -22,9 +22,10 @@
 
         #container {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            display: flex; justify-content: center; align-items: center;
-            /* Default to local image, fallback to Unsplash if missing */
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             background: url('background.jpg') center/cover no-repeat, 
                         url('https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
             z-index: 1;
@@ -38,7 +39,6 @@
             pointer-events: none;
             box-sizing: border-box;
             display: none;
-            /* Anchor to center for perfect edge snapping */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -64,7 +64,9 @@
             background: var(--bg-glass);
             color: white;
             border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             z-index: 2000;
             cursor: pointer;
             backdrop-filter: blur(15px);
@@ -136,25 +138,14 @@
             border: 1px solid rgba(255,255,255,0.1);
             pointer-events: none;
         }
+        /* Highlight labels with accent color */
         #info-tag strong { color: var(--accent); }
-
-        /* --- Frame Colors --- */
-        .c11 { border-color: #ffffff; color: #ffffff; }
-        .c143 { border-color: #ffd700; color: #ffd700; }
-        .c43 { border-color: #007aff; color: #007aff; }
-        .c1610 { border-color: #aaaaaa; color: #aaaaaa; }
-        .c169 { border-color: #ff3b30; color: #ff3b30; }
-        .c185 { border-color: #34c759; color: #34c759; }
-        .c190 { border-color: #00ffff; color: #00ffff; }
-        .c21 { border-color: #af52de; color: #af52de; }
-        .c235 { border-color: #ffcc00; color: #ffcc00; }
-        .c239 { border-color: #ff9500; color: #ff9500; }
     </style>
 </head>
 <body>
 
     <div id="overlay-mask" style="position:fixed; inset:0; z-index:1800; display:none;" onclick="togglePanel()"></div>
-    <div id="info-tag">Initializing hardware probe...</div>
+    <div id="info-tag">Initializing...</div>
     <div id="menu-trigger" onclick="togglePanel()">⚙️</div>
 
     <div id="floating-panel">
@@ -169,13 +160,7 @@
     <div id="container"></div>
 
     <script>
-        const container = document.getElementById('container');
-        const ratioList = document.getElementById('ratio-list');
-        const infoTag = document.getElementById('info-tag');
-        const panel = document.getElementById('floating-panel');
-        const mask = document.getElementById('overlay-mask');
-        const fileInput = document.getElementById('file-upload');
-
+        // --- Configuration & State ---
         const configs = [
             { name: '1.00:1 (Square)', ratio: 1, class: 'c11', color: '#ffffff', active: false },
             { name: '1.43:1 (IMAX GT)', ratio: 1.43, class: 'c143', color: '#ffd700', active: true },
@@ -189,13 +174,37 @@
             { name: '2.39:1 (Modern Scope)', ratio: 2.39, class: 'c239', color: '#ff9500', active: true }
         ];
 
-        configs.forEach((cfg, i) => {
+        // --- DOM Cache ---
+        const elements = {
+            container: document.getElementById('container'),
+            ratioList: document.getElementById('ratio-list'),
+            infoTag: document.getElementById('info-tag'),
+            panel: document.getElementById('floating-panel'),
+            mask: document.getElementById('overlay-mask'),
+            fileInput: document.getElementById('file-upload'),
+            trigger: document.getElementById('menu-trigger')
+        };
+
+        // --- Initialization ---
+        function init() {
+            configs.forEach((cfg, i) => {
+                createOverlay(cfg, i);
+                createMenuItem(cfg, i);
+            });
+            setupEventListeners();
+            updateLayout();
+        }
+
+        function createOverlay(cfg, i) {
             const box = document.createElement('div');
             box.id = `box-${i}`;
             box.className = `overlay ${cfg.class}`;
+            box.style.borderColor = cfg.color; // Set color from config
             box.innerHTML = `<span class="label"><span style="color:${cfg.color}">—</span> ${cfg.name}</span>`;
-            container.appendChild(box);
+            elements.container.appendChild(box);
+        }
 
+        function createMenuItem(cfg, i) {
             const item = document.createElement('label');
             item.className = 'item';
             item.innerHTML = `
@@ -207,67 +216,79 @@
                 cfg.active = e.target.checked;
                 updateLayout();
             };
-            ratioList.appendChild(item);
-        });
+            elements.ratioList.appendChild(item);
+        }
 
+        // --- Core Logic ---
         function updateLayout() {
-            const vv = window.visualViewport;
-            const vW = vv ? vv.width : window.innerWidth;
-            const vH = vv ? vv.height : window.innerHeight;
-            const dpr = window.devicePixelRatio || 1;
-            
-            // 四捨五入最能精確反映多數裝置的硬體像素對齊
-            const screenW = Math.round(window.screen.width * dpr);
-            const screenH = Math.round(window.screen.height * dpr);
-            const contentW = Math.round(vW * dpr);
-            const contentH = Math.round(vH * dpr);
-            const sR = vW / vH;
-
-            infoTag.innerHTML = `Display: ${screenW}x${screenH} | <strong>Active: ${contentW}x${contentH}</strong> | Ratio: ${sR.toFixed(2)}:1`;
-
-            configs.forEach((cfg, i) => {
-                const el = document.getElementById(`box-${i}`);
-                if (!cfg.active) { el.style.display = 'none'; return; }
+            window.requestAnimationFrame(() => {
+                const vv = window.visualViewport;
+                const vW = vv ? vv.width : window.innerWidth;
+                const vH = vv ? vv.height : window.innerHeight;
+                const dpr = window.devicePixelRatio || 1;
                 
-                el.style.display = 'block';
-                let w, h;
-                if (sR > cfg.ratio) {
-                    h = vH; w = vH * cfg.ratio;
-                } else {
-                    w = vW; h = vW / cfg.ratio;
-                }
-                el.style.width = `${Math.round(w)}px`;
-                el.style.height = `${Math.round(h)}px`;
+                const contentW = Math.round(vW * dpr);
+                const contentH = Math.round(vH * dpr);
+                const sR = vW / vH;
+
+                // Update Info Tag - Ratio is now bold/accent color
+                elements.infoTag.innerHTML = `Display: <strong>${contentW}x${contentH}</strong> | Ratio: <strong>${sR.toFixed(2)}:1</strong>`;
+
+                configs.forEach((cfg, i) => {
+                    const el = document.getElementById(`box-${i}`);
+                    if (!cfg.active) {
+                        el.style.display = 'none';
+                        return;
+                    }
+                    
+                    el.style.display = 'block';
+                    let w, h;
+                    if (sR > cfg.ratio) {
+                        h = vH; w = vH * cfg.ratio;
+                    } else {
+                        w = vW; h = vW / cfg.ratio;
+                    }
+                    el.style.width = `${Math.round(w)}px`;
+                    el.style.height = `${Math.round(h)}px`;
+                });
             });
         }
 
+        // --- UI Handlers ---
         function togglePanel() {
-            const isActive = panel.classList.toggle('active');
-            mask.style.display = isActive ? 'block' : 'none';
-            document.getElementById('menu-trigger').innerText = isActive ? '✕' : '⚙️';
+            const isActive = elements.panel.classList.toggle('active');
+            elements.mask.style.display = isActive ? 'block' : 'none';
+            elements.trigger.innerText = isActive ? '✕' : '⚙️';
         }
-
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => container.style.backgroundImage = `url('${event.target.result}')`;
-                reader.readAsDataURL(file);
-            }
-        });
 
         function toggleFullScreen() {
             if (!document.fullscreenElement) document.documentElement.requestFullscreen();
             else if (document.exitFullscreen) document.exitFullscreen();
         }
 
-        window.addEventListener('resize', updateLayout);
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', updateLayout);
-            window.visualViewport.addEventListener('scroll', updateLayout);
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    elements.container.style.backgroundImage = `url('${event.target.result}')`;
+                };
+                reader.readAsDataURL(file);
+            }
         }
-        window.addEventListener('load', updateLayout);
-        updateLayout();
+
+        function setupEventListeners() {
+            window.addEventListener('resize', updateLayout);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', updateLayout);
+                window.visualViewport.addEventListener('scroll', updateLayout);
+            }
+            elements.fileInput.addEventListener('change', handleFileUpload);
+            window.addEventListener('load', updateLayout);
+        }
+
+        // Start Tool
+        init();
     </script>
 </body>
 </html>
