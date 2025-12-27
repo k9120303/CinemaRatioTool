@@ -23,18 +23,22 @@
         #container {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: url('background.jpg?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+            display: flex; justify-content: center; align-items: center;
+            /* Default to local image, fallback to Unsplash if missing */
+            background: url('background.jpg') center/cover no-repeat, 
+                        url('https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
             z-index: 1;
             transition: background-image 0.3s ease;
         }
 
         .overlay {
             position: absolute;
-            border: 3px solid;
+            border-width: 3px;
+            border-style: solid;
             pointer-events: none;
             box-sizing: border-box;
             display: none;
-            /* Anchored to center to ensure edge snapping */
+            /* Anchor to center for perfect edge snapping */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -96,28 +100,15 @@
         .button-group { display: flex; gap: 10px; margin-bottom: 20px; }
         
         .btn-primary { 
-            flex: 1; 
-            background: var(--accent); 
-            border: none; 
-            color: white; 
-            border-radius: 12px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            font-size: 15px; 
-            padding: 14px; 
+            flex: 1; background: var(--accent); border: none; color: white; 
+            border-radius: 12px; font-weight: bold; cursor: pointer; 
+            font-size: 15px; padding: 14px; 
         }
 
         .btn-icon { 
-            width: 48px; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            background: rgba(255,255,255,0.1); 
-            border: 1px solid rgba(255,255,255,0.15); 
-            color: white; 
-            border-radius: 12px; 
-            cursor: pointer; 
-            font-size: 20px; 
+            width: 48px; display: flex; justify-content: center; align-items: center; 
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); 
+            color: white; border-radius: 12px; cursor: pointer; font-size: 20px; 
         }
         
         #file-upload { display: none; }
@@ -125,11 +116,8 @@
         .ratio-list { display: grid; grid-template-columns: 1fr; gap: 4px; }
         
         .item { 
-            display: flex; align-items: center; 
-            padding: 8px 12px; 
-            border-radius: 10px; 
-            cursor: pointer; 
-            font-size: 15.5px; 
+            display: flex; align-items: center; padding: 8px 12px; 
+            border-radius: 10px; cursor: pointer; font-size: 15.5px; 
             transition: background 0.2s;
         }
         .item:hover { background: rgba(255,255,255,0.1); }
@@ -150,7 +138,7 @@
         }
         #info-tag strong { color: var(--accent); }
 
-        /* Frame Colors */
+        /* --- Frame Colors --- */
         .c11 { border-color: #ffffff; color: #ffffff; }
         .c143 { border-color: #ffd700; color: #ffd700; }
         .c43 { border-color: #007aff; color: #007aff; }
@@ -166,7 +154,7 @@
 <body>
 
     <div id="overlay-mask" style="position:fixed; inset:0; z-index:1800; display:none;" onclick="togglePanel()"></div>
-    <div id="info-tag">Initializing...</div>
+    <div id="info-tag">Initializing hardware probe...</div>
     <div id="menu-trigger" onclick="togglePanel()">⚙️</div>
 
     <div id="floating-panel">
@@ -223,13 +211,12 @@
         });
 
         function updateLayout() {
-            // 使用 VisualViewport 取得最精確的視窗大小
             const vv = window.visualViewport;
             const vW = vv ? vv.width : window.innerWidth;
             const vH = vv ? vv.height : window.innerHeight;
             const dpr = window.devicePixelRatio || 1;
             
-            // 使用 Math.round 解決 1 像素誤差問題 (四捨五入最符合物理像素轉換)
+            // 四捨五入最能精確反映多數裝置的硬體像素對齊
             const screenW = Math.round(window.screen.width * dpr);
             const screenH = Math.round(window.screen.height * dpr);
             const contentW = Math.round(vW * dpr);
@@ -249,7 +236,6 @@
                 } else {
                     w = vW; h = vW / cfg.ratio;
                 }
-                // 使用 Math.round 確保線條完全貼合邊緣像素
                 el.style.width = `${Math.round(w)}px`;
                 el.style.height = `${Math.round(h)}px`;
             });
