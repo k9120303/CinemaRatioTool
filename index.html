@@ -9,7 +9,7 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
-            --edge: 20px; /* Symmetrical edge offset */
+            --edge: 20px;
         }
 
         body, html {
@@ -22,12 +22,12 @@
 
         #container {
             position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            display: flex; justify-content: center; align-items: center;
+            /* 使用 inset 確保在所有瀏覽器 UI 狀態下都填滿 */
+            top: 0; left: 0; right: 0; bottom: 0;
             background: url('background.jpg?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
             z-index: 1;
             transition: background-image 0.3s ease;
+            overflow: hidden;
         }
 
         .overlay {
@@ -36,6 +36,10 @@
             pointer-events: none;
             box-sizing: border-box;
             display: none;
+            /* 改用中心座標定位，確保對齊精確 */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
         }
 
         .label {
@@ -71,7 +75,7 @@
             position: fixed;
             top: calc(var(--edge) + 65px);
             right: var(--edge);
-            width: 360px; /* Slightly wider for the larger font */
+            width: 360px;
             max-height: 80vh;
             background: var(--bg-glass);
             backdrop-filter: blur(25px);
@@ -94,41 +98,23 @@
         .button-group { display: flex; gap: 10px; margin-bottom: 20px; }
         
         .btn-primary { 
-            flex: 1; 
-            background: var(--accent); 
-            border: none; 
-            color: white; 
-            border-radius: 12px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            font-size: 15px; 
-            padding: 14px; 
+            flex: 1; background: var(--accent); border: none; color: white; 
+            border-radius: 12px; font-weight: bold; cursor: pointer; 
+            font-size: 15px; padding: 14px; 
         }
 
         .btn-icon { 
-            width: 48px; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            background: rgba(255,255,255,0.1); 
-            border: 1px solid rgba(255,255,255,0.15); 
-            color: white; 
-            border-radius: 12px; 
-            cursor: pointer; 
-            font-size: 20px; 
+            width: 48px; display: flex; justify-content: center; align-items: center; 
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); 
+            color: white; border-radius: 12px; cursor: pointer; font-size: 20px; 
         }
         
         #file-upload { display: none; }
 
         .ratio-list { display: grid; grid-template-columns: 1fr; gap: 4px; }
-        
-        /* Larger font size for the ratio labels */
         .item { 
-            display: flex; align-items: center; 
-            padding: 8px 12px; 
-            border-radius: 10px; 
-            cursor: pointer; 
-            font-size: 15.5px; /* Larger text */
+            display: flex; align-items: center; padding: 8px 12px; 
+            border-radius: 10px; cursor: pointer; font-size: 15.5px; 
             transition: background 0.2s;
         }
         .item:hover { background: rgba(255,255,255,0.1); }
@@ -222,14 +208,17 @@
         });
 
         function updateLayout() {
-            const vW = window.innerWidth;
-            const vH = window.innerHeight;
+            // 使用 VisualViewport API 以獲得精確的內容可視區域
+            const vv = window.visualViewport;
+            const vW = vv ? vv.width : window.innerWidth;
+            const vH = vv ? vv.height : window.innerHeight;
             const dpr = window.devicePixelRatio || 1;
             
-            const screenW = Math.round(window.screen.width * dpr);
-            const screenH = Math.round(window.screen.height * dpr);
-            const contentW = Math.round(vW * dpr);
-            const contentH = Math.round(vH * dpr);
+            // 使用 Math.floor 解決 1 像素誤差問題 (DPR 浮點數精度)
+            const screenW = Math.floor(window.screen.width * dpr);
+            const screenH = Math.floor(window.screen.height * dpr);
+            const contentW = Math.floor(vW * dpr);
+            const contentH = Math.floor(vH * dpr);
             const sR = vW / vH;
 
             infoTag.innerHTML = `Display: ${screenW}x${screenH} | <strong>Active: ${contentW}x${contentH}</strong> | Ratio: ${sR.toFixed(2)}:1`;
@@ -245,6 +234,7 @@
                 } else {
                     w = vW; h = vW / cfg.ratio;
                 }
+                // 使用 Math.round 確保線條座標對齊物理像素
                 el.style.width = `${Math.round(w)}px`;
                 el.style.height = `${Math.round(h)}px`;
             });
@@ -270,8 +260,14 @@
             else if (document.exitFullscreen) document.exitFullscreen();
         }
 
+        // 監聽視窗變化與視覺視窗變化
         window.addEventListener('resize', updateLayout);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateLayout);
+            window.visualViewport.addEventListener('scroll', updateLayout);
+        }
         window.addEventListener('load', updateLayout);
+        
         updateLayout();
     </script>
 </body>
