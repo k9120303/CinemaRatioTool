@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CinemaRatioTool</title>
+    <style>
+        :root {
+            --bg-glass: rgba(18, 18, 18, 0.92);
+            --accent: #007aff;
+            --text: #ffffff;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #container {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; justify-content: center; align-items: center;
+            background: url('https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1920&q=80') center/cover no-repeat;
+            z-index: 1;
+        }
+
+        /* Overlay Frame - 3px thickness */
+        .overlay {
+            position: absolute;
+            border: 3px solid;
+            pointer-events: none;
+            box-sizing: border-box;
+            display: none;
+            transition: width 0.2s ease-out, height 0.2s ease-out;
+        }
+
+        .label {
+            position: absolute;
+            top: 0; left: 5px;
+            font-size: 11px;
+            background: rgba(0,0,0,0.85);
+            padding: 2px 8px;
+            border-radius: 0 0 4px 4px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        #menu-trigger {
+            position: fixed;
+            top: 20px; right: 20px;
+            width: 50px; height: 50px;
+            background: var(--bg-glass);
+            color: white;
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 2000;
+            cursor: pointer;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            font-size: 24px;
+        }
+
+        #floating-panel {
+            position: fixed;
+            top: 80px; right: 20px;
+            width: 280px;
+            max-height: 85vh;
+            background: var(--bg-glass);
+            backdrop-filter: blur(25px);
+            border-radius: 20px;
+            color: var(--text);
+            padding: 24px;
+            box-sizing: border-box;
+            z-index: 1900;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+            overflow-y: auto;
+            
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        #floating-panel.active {
+            opacity: 1; transform: translateY(0) scale(1); pointer-events: auto;
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 20px;
+            background: var(--accent);
+            border: none;
+            color: white;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,122,255,0.4);
+        }
+
+        .ratio-list { display: grid; grid-template-columns: 1fr; gap: 4px; }
+
+        .item {
+            display: flex; align-items: center;
+            padding: 10px; border-radius: 10px;
+            cursor: pointer; font-size: 14px;
+        }
+        .item:hover { background: rgba(255,255,255,0.1); }
+        .item input { width: 18px; height: 18px; margin-right: 15px; cursor: pointer; }
+
+        #info-tag {
+            position: fixed; bottom: 15px; left: 15px;
+            font-size: 11px; color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.6); padding: 6px 14px;
+            border-radius: 20px; z-index: 500;
+            line-height: 1.4;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #info-tag strong { color: var(--accent); }
+
+        /* Color Scheme */
+        .c11 { border-color: #ffffff; color: #ffffff; }
+        .c143 { border-color: #ffd700; color: #ffd700; }
+        .c43 { border-color: #007aff; color: #007aff; }
+        .c1610 { border-color: #aaaaaa; color: #aaaaaa; }
+        .c169 { border-color: #ff3b30; color: #ff3b30; }
+        .c185 { border-color: #34c759; color: #34c759; }
+        .c190 { border-color: #00ffff; color: #00ffff; }
+        .c21 { border-color: #af52de; color: #af52de; }
+        .c235 { border-color: #ffcc00; color: #ffcc00; }
+        .c239 { border-color: #ff9500; color: #ff9500; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay-mask" style="position:fixed; inset:0; z-index:1800; display:none;" onclick="togglePanel()"></div>
+    <div id="info-tag">Initializing...</div>
+    <div id="menu-trigger" onclick="togglePanel()">⚙️</div>
+
+    <div id="floating-panel">
+        <button class="btn-action" onclick="toggleFullScreen()">Toggle Fullscreen</button>
+        <div class="ratio-list" id="ratio-list"></div>
+    </div>
+
+    <div id="container"></div>
+
+    <script>
+        const container = document.getElementById('container');
+        const ratioList = document.getElementById('ratio-list');
+        const infoTag = document.getElementById('info-tag');
+        const panel = document.getElementById('floating-panel');
+        const mask = document.getElementById('overlay-mask');
+
+        const configs = [
+            { name: '1:1 (Square)', ratio: 1/1, class: 'c11', active: false },
+            { name: '1.43:1 (IMAX GT)', ratio: 1.43, class: 'c143', active: true },
+            { name: '4:3 (Traditional)', ratio: 4/3, class: 'c43', active: false },
+            { name: '16:10 (Monitor)', ratio: 16/10, class: 'c1610', active: false },
+            { name: '16:9 (HDTV)', ratio: 16/9, class: 'c169', active: true },
+            { name: '1.85:1 (Cinema Flat)', ratio: 1.85, class: 'c185', active: false },
+            { name: '1.90:1 (Digital IMAX)', ratio: 1.9, class: 'c190', active: true },
+            { name: '2:1 (Univisium)', ratio: 2, class: 'c21', active: false },
+            { name: '2.35:1 (Classic Scope)', ratio: 2.35, class: 'c235', active: false },
+            { name: '2.39:1 (Modern Scope)', ratio: 2.39, class: 'c239', active: true }
+        ];
+
+        configs.forEach((cfg, i) => {
+            const box = document.createElement('div');
+            box.id = `box-${i}`;
+            box.className = `overlay ${cfg.class}`;
+            box.innerHTML = `<span class="label">${cfg.name}</span>`;
+            container.appendChild(box);
+
+            const item = document.createElement('label');
+            item.className = 'item';
+            item.innerHTML = `<input type="checkbox" ${cfg.active ? 'checked' : ''}> ${cfg.name}`;
+            item.querySelector('input').onchange = (e) => {
+                cfg.active = e.target.checked;
+                updateLayout();
+            };
+            ratioList.appendChild(item);
+        });
+
+        function updateLayout() {
+            const vW = window.innerWidth;
+            const vH = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            
+            // Physical pixel calculation
+            const physW = Math.round(vW * dpr);
+            const physH = Math.round(vH * dpr);
+            const sR = vW / vH;
+
+            infoTag.innerHTML = `
+                CSS: ${vW}x${vH} | 
+                <strong>Physical: ${physW}x${physH}</strong> | 
+                Ratio: ${sR.toFixed(2)}:1
+            `;
+
+            configs.forEach((cfg, i) => {
+                const el = document.getElementById(`box-${i}`);
+                if (!cfg.active) { el.style.display = 'none'; return; }
+                
+                el.style.display = 'block';
+                let w, h;
+                if (sR > cfg.ratio) {
+                    h = vH; w = vH * cfg.ratio;
+                } else {
+                    w = vW; h = vW / cfg.ratio;
+                }
+                el.style.width = `${Math.floor(w)}px`;
+                el.style.height = `${Math.floor(h)}px`;
+            });
+        }
+
+        function togglePanel() {
+            const isActive = panel.classList.toggle('active');
+            mask.style.display = isActive ? 'block' : 'none';
+            document.getElementById('menu-trigger').innerText = isActive ? '✕' : '⚙️';
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        window.addEventListener('resize', updateLayout);
+        window.addEventListener('load', updateLayout);
+        updateLayout();
+    </script>
+</body>
+</html>
