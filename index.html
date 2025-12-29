@@ -9,7 +9,7 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
-            /* Safe area variables, default to 20px if not supported */
+            /* Safe area variables */
             --safe-top: env(safe-area-inset-top, 20px);
             --safe-right: env(safe-area-inset-right, 20px);
             --safe-bottom: env(safe-area-inset-bottom, 20px);
@@ -46,7 +46,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            /* Make borders sharper */
+            /* Sharper borders */
             box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
         }
 
@@ -64,7 +64,6 @@
 
         #menu-trigger {
             position: fixed;
-            /* Use safe area variables to avoid being cut off by notch or rounded corners */
             top: max(20px, var(--safe-top));
             right: max(20px, var(--safe-right));
             width: 50px; height: 50px;
@@ -136,7 +135,6 @@
 
         #info-tag {
             position: fixed;
-            /* Use safe area variables */
             bottom: max(20px, var(--safe-bottom));
             left: max(20px, var(--safe-left));
             font-size: 11px; color: rgba(255,255,255,0.7);
@@ -145,7 +143,7 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.1);
             pointer-events: none;
-            white-space: pre-wrap; /* Allow line wrapping */
+            white-space: pre-wrap;
             line-height: 1.5;
         }
         #info-tag strong { color: var(--accent); }
@@ -228,7 +226,7 @@
             elements.ratioList.appendChild(item);
         }
 
-        // --- Core Logic (Split Strategy for Mobile vs Desktop) ---
+        // --- Core Logic (Perfect Edge + Accurate Stats) ---
         function updateLayout() {
             window.requestAnimationFrame(() => {
                 // 1. Force DPR correction
@@ -237,31 +235,24 @@
                     dpr = Math.round(dpr * 4) / 4; 
                 }
 
-                // 2. Get Viewport Dimensions (Logical)
-                const logicalW = document.documentElement.clientWidth;
-                const logicalH = document.documentElement.clientHeight;
+                // 2. Get Viewport Dimensions (For drawing)
+                // Use window.innerWidth/Height to get full "bleeding edge" dimensions on mobile
+                const drawingW = window.innerWidth;
+                const drawingH = window.innerHeight;
+                
+                // Use clientWidth for stats calculation to be consistent with document flow
+                const statsW = document.documentElement.clientWidth;
+                const statsH = document.documentElement.clientHeight;
 
-                // 3. Smart Calculation Logic
-                // Separates Mobile (needs Round) from Desktop (needs Floor + Correction)
+                // 3. Stats Calculation (Mobile Round / Desktop Floor+Even)
                 function getCorrectedSize(logicalVal) {
                     const rawPhys = logicalVal * dpr;
-
-                    // Detect Mobile: Has touch capability
                     const isMobile = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
                     
                     if (isMobile) {
-                        // [Mobile Logic]
-                        // Mobile scaling is usually more precise (integers).
-                        // Use Math.round() to recover the lost 0.99 pixels.
-                        // Do NOT force even numbers (phones often have odd widths).
                         return Math.round(rawPhys);
                     } else {
-                        // [Desktop Logic]
-                        // Windows scaling tends to overshoot (e.g. 1080.1). Use Floor.
                         let phys = Math.floor(rawPhys);
-                        
-                        // Force Even Correction for Desktop:
-                        // If value is large (>1000) and Odd, assume it's a +1 error and fix it.
                         if (phys > 1000 && phys % 2 !== 0) {
                             return phys - 1;
                         }
@@ -269,18 +260,19 @@
                     }
                 }
 
-                // 4. Calculate Accurate Physical Pixels
-                const displayW = getCorrectedSize(logicalW);
-                const displayH = getCorrectedSize(logicalH);
-                
-                // 5. Calculate Ratio
+                // Calculate stats
+                const displayW = getCorrectedSize(statsW);
+                const displayH = getCorrectedSize(statsH);
                 const currentRatio = displayW / displayH;
 
-                // 6. Update Info Tag
+                // 4. Update Info Tag
                 elements.infoTag.innerHTML = 
                     `Display: <strong>${displayW}x${displayH}</strong> | Ratio: <strong>${currentRatio.toFixed(2)}:1</strong>`;
 
-                // 7. Update Overlays
+                // 5. Update Overlays (Using 100% for perfect fit)
+                // We use the aspect ratio from drawing dimensions to decide fit
+                const drawingRatio = drawingW / drawingH;
+                
                 configs.forEach((cfg, i) => {
                     const el = document.getElementById(`box-${i}`);
                     if (!cfg.active) {
@@ -289,18 +281,16 @@
                     }
                     el.style.display = 'block';
                     
-                    let w, h;
-                    // Fit based on current aspect ratio
-                    if (currentRatio > cfg.ratio) {
-                        h = logicalH; 
-                        w = logicalH * cfg.ratio;
+                    // KEY FIX: Use '100%' instead of calculated pixels for the filling side
+                    if (drawingRatio > cfg.ratio) {
+                        // Screen is wider than target -> Height is full
+                        el.style.height = '100%';
+                        el.style.width = `${drawingH * cfg.ratio}px`;
                     } else {
-                        w = logicalW; 
-                        h = logicalW / cfg.ratio;
+                        // Screen is narrower than target -> Width is full
+                        el.style.width = '100%';
+                        el.style.height = `${drawingW / cfg.ratio}px`;
                     }
-                    
-                    el.style.width = `${w}px`;
-                    el.style.height = `${h}px`;
                 });
             });
         }
