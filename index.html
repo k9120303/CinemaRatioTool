@@ -9,7 +9,11 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
-            --edge: 20px;
+            /* Safe area variables, default to 20px if not supported */
+            --safe-top: env(safe-area-inset-top, 20px);
+            --safe-right: env(safe-area-inset-right, 20px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+            --safe-left: env(safe-area-inset-left, 20px);
         }
 
         body, html {
@@ -42,6 +46,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
+            /* Make borders sharper */
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
         }
 
         .label {
@@ -58,8 +64,9 @@
 
         #menu-trigger {
             position: fixed;
-            top: var(--edge);
-            right: var(--edge);
+            /* Use safe area variables to avoid being cut off by notch or rounded corners */
+            top: max(20px, var(--safe-top));
+            right: max(20px, var(--safe-right));
             width: 50px; height: 50px;
             background: var(--bg-glass);
             color: white;
@@ -77,8 +84,8 @@
 
         #floating-panel {
             position: fixed;
-            top: calc(var(--edge) + 65px);
-            right: var(--edge);
+            top: calc(max(20px, var(--safe-top)) + 65px);
+            right: max(20px, var(--safe-right));
             width: 360px;
             max-height: 80vh;
             background: var(--bg-glass);
@@ -129,16 +136,18 @@
 
         #info-tag {
             position: fixed;
-            bottom: var(--edge);
-            left: var(--edge);
+            /* Use safe area variables */
+            bottom: max(20px, var(--safe-bottom));
+            left: max(20px, var(--safe-left));
             font-size: 11px; color: rgba(255,255,255,0.7);
             background: rgba(0,0,0,0.7); padding: 10px 16px;
             border-radius: 15px; z-index: 500;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.1);
             pointer-events: none;
+            white-space: pre-wrap; /* Allow line wrapping */
+            line-height: 1.5;
         }
-        /* Highlight labels with accent color */
         #info-tag strong { color: var(--accent); }
     </style>
 </head>
@@ -199,7 +208,7 @@
             const box = document.createElement('div');
             box.id = `box-${i}`;
             box.className = `overlay ${cfg.class}`;
-            box.style.borderColor = cfg.color; // Set color from config
+            box.style.borderColor = cfg.color;
             box.innerHTML = `<span class="label"><span style="color:${cfg.color}">—</span> ${cfg.name}</span>`;
             elements.container.appendChild(box);
         }
@@ -219,37 +228,69 @@
             elements.ratioList.appendChild(item);
         }
 
-        // --- Core Logic ---
+        // --- Core Logic (Dynamic + Force Even Correction) ---
         function updateLayout() {
             window.requestAnimationFrame(() => {
-                const vv = window.visualViewport;
-                const vW = vv ? vv.width : window.innerWidth;
-                const vH = vv ? vv.height : window.innerHeight;
-                const dpr = window.devicePixelRatio || 1;
+                // 1. Force DPR correction
+                let dpr = window.devicePixelRatio || 1;
+                if (Math.abs(dpr * 100 % 25) < 1) {
+                    dpr = Math.round(dpr * 4) / 4; 
+                }
+
+                // 2. Get Viewport Dimensions (Logical)
+                const logicalW = document.documentElement.clientWidth;
+                const logicalH = document.documentElement.clientHeight;
+
+                // 3. Calculation & Correction Function
+                // This function applies the logic: 
+                // "If desktop & large number & odd => subtract 1 to make it even"
+                function getCorrectedSize(logicalVal) {
+                    let phys = Math.floor(logicalVal * dpr);
+                    
+                    // Check if device is likely Desktop (non-touch)
+                    const isDesktop = !window.matchMedia("(pointer: coarse)").matches;
+                    
+                    // If desktop, value is large (>1000), and is Odd (e.g., 1081) -> Fix to Even (1080)
+                    if (isDesktop && phys > 1000 && phys % 2 !== 0) {
+                        return phys - 1;
+                    }
+                    return phys;
+                }
+
+                // 4. Calculate Accurate Physical Pixels (Window Size)
+                const displayW = getCorrectedSize(logicalW);
+                const displayH = getCorrectedSize(logicalH);
                 
-                const contentW = Math.round(vW * dpr);
-                const contentH = Math.round(vH * dpr);
-                const sR = vW / vH;
+                // 5. Calculate Ratio based on corrected values
+                const currentRatio = displayW / displayH;
 
-                // Update Info Tag - Ratio is now bold/accent color
-                elements.infoTag.innerHTML = `Display: <strong>${contentW}x${contentH}</strong> | Ratio: <strong>${sR.toFixed(2)}:1</strong>`;
+                // 6. Update Info Tag
+                elements.infoTag.innerHTML = 
+                    `Display: <strong>${displayW}x${displayH}</strong> | Ratio: <strong>${currentRatio.toFixed(2)}:1</strong>`;
 
+                // 7. Update Overlays
+                // Drawing uses logical pixels to match CSS layout
                 configs.forEach((cfg, i) => {
                     const el = document.getElementById(`box-${i}`);
                     if (!cfg.active) {
                         el.style.display = 'none';
                         return;
                     }
-                    
                     el.style.display = 'block';
+                    
                     let w, h;
-                    if (sR > cfg.ratio) {
-                        h = vH; w = vH * cfg.ratio;
+                    
+                    // Fit based on current aspect ratio
+                    if (currentRatio > cfg.ratio) {
+                        h = logicalH; 
+                        w = logicalH * cfg.ratio;
                     } else {
-                        w = vW; h = vW / cfg.ratio;
+                        w = logicalW; 
+                        h = logicalW / cfg.ratio;
                     }
-                    el.style.width = `${Math.round(w)}px`;
-                    el.style.height = `${Math.round(h)}px`;
+                    
+                    el.style.width = `${w}px`;
+                    el.style.height = `${h}px`;
                 });
             });
         }
@@ -279,6 +320,9 @@
 
         function setupEventListeners() {
             window.addEventListener('resize', updateLayout);
+            // Listen for DPI changes
+            matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener("change", updateLayout);
+            
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', updateLayout);
                 window.visualViewport.addEventListener('scroll', updateLayout);
@@ -292,5 +336,4 @@
     </script>
     
 </body>
-    
 </html>
