@@ -9,6 +9,7 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
+            /* Safe area variables */
             --safe-top: env(safe-area-inset-top, 20px);
             --safe-right: env(safe-area-inset-right, 20px);
             --safe-bottom: env(safe-area-inset-bottom, 20px);
@@ -42,8 +43,7 @@
             pointer-events: none;
             box-sizing: border-box;
             display: none;
-            
-            /* Center alignment (will be overridden when full width/height) */
+            /* Default center alignment */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -225,51 +225,62 @@
             elements.ratioList.appendChild(item);
         }
 
-        // --- Core Logic ---
+        // --- Core Logic (Hybrid: Mobile Reference + Desktop Fix) ---
         function updateLayout() {
             window.requestAnimationFrame(() => {
-                // 1. Force DPR correction
-                let dpr = window.devicePixelRatio || 1;
-                if (Math.abs(dpr * 100 % 25) < 1) {
-                    dpr = Math.round(dpr * 4) / 4; 
+                const dpr = window.devicePixelRatio || 1;
+                
+                // 1. Detect Device Type
+                // Use 'pointer: coarse' to detect touch devices (Mobile/Tablet)
+                const isMobile = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+
+                // 2. Get Logic Dimensions
+                let logicalW, logicalH;
+                
+                if (isMobile && window.visualViewport) {
+                    // [Mobile] Use visualViewport (as per your reference code)
+                    // This handles pinch-zoom and virtual keyboards better on phones
+                    logicalW = window.visualViewport.width;
+                    logicalH = window.visualViewport.height;
+                } else {
+                    // [Desktop] Use innerWidth
+                    // Best for resizing windows on PC/Mac
+                    logicalW = window.innerWidth;
+                    logicalH = window.innerHeight;
                 }
 
-                // 2. Get Dimensions
-                // Use window.innerWidth for BOTH drawing and stats on mobile
-                // This ensures consistency and captures the full visual width
-                const winW = window.innerWidth;
-                const winH = window.innerHeight;
+                // 3. Calculate Physical Pixels (The Hybrid Logic)
+                let displayW, displayH;
 
-                // 3. Stats Calculation (Smart Split)
-                function getCorrectedSize(logicalVal) {
-                    const rawPhys = logicalVal * dpr;
-                    const isMobile = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
-                    
-                    if (isMobile) {
-                        // [Mobile] Use Math.ceil to aggressive capture the "missing" pixels
-                        // This fixes the "less by 2" issue on high DPI screens
-                        return Math.ceil(rawPhys);
-                    } else {
-                        // [Desktop] Keep the Floor + Even logic for Windows
-                        let phys = Math.floor(rawPhys);
+                if (isMobile) {
+                    // [Mobile Logic] - Your Requested "Reference Code" Logic
+                    // Simple Math.round, works great for iOS/Android density
+                    displayW = Math.round(logicalW * dpr);
+                    displayH = Math.round(logicalH * dpr);
+                } else {
+                    // [Desktop Logic] - The "Don't Touch" Logic
+                    // Use Math.floor + Even Correction to fix Windows scaling bugs
+                    const fixDesktopSize = (val) => {
+                        let phys = Math.floor(val * dpr);
+                        // Odd/Even fix for large desktop screens
                         if (phys > 1000 && phys % 2 !== 0) {
                             return phys - 1;
                         }
                         return phys;
-                    }
+                    };
+                    displayW = fixDesktopSize(logicalW);
+                    displayH = fixDesktopSize(logicalH);
                 }
 
-                // Calculate Stats (using winW/winH now)
-                const displayW = getCorrectedSize(winW);
-                const displayH = getCorrectedSize(winH);
                 const currentRatio = displayW / displayH;
 
                 // 4. Update Info Tag
                 elements.infoTag.innerHTML = 
                     `Display: <strong>${displayW}x${displayH}</strong> | Ratio: <strong>${currentRatio.toFixed(2)}:1</strong>`;
 
-                // 5. Update Overlays (Using 100% + Reset Transform)
-                const drawingRatio = winW / winH;
+                // 5. Update Overlays
+                // We use the 100% CSS trick here to ensure no visual gaps on EITHER device
+                const drawingRatio = logicalW / logicalH;
                 
                 configs.forEach((cfg, i) => {
                     const el = document.getElementById(`box-${i}`);
@@ -279,25 +290,25 @@
                     }
                     el.style.display = 'block';
                     
-                    // Reset all positioning
+                    // Reset styles
                     el.style.top = ''; el.style.left = '';
                     el.style.transform = '';
                     el.style.width = ''; el.style.height = '';
                     
                     if (drawingRatio > cfg.ratio) {
-                        // Screen is wider -> Height is 100%
+                        // Screen wider -> Height 100%
                         el.style.height = '100%';
                         el.style.top = '0';
-                        el.style.width = `${winH * cfg.ratio}px`;
-                        // Center horizontally
+                        el.style.width = `${logicalH * cfg.ratio}px`;
+                        // Center X
                         el.style.left = '50%';
                         el.style.transform = 'translateX(-50%)';
                     } else {
-                        // Screen is taller -> Width is 100%
+                        // Screen taller -> Width 100%
                         el.style.width = '100%';
                         el.style.left = '0';
-                        el.style.height = `${winW / cfg.ratio}px`;
-                        // Center vertically
+                        el.style.height = `${logicalW / cfg.ratio}px`;
+                        // Center Y
                         el.style.top = '50%';
                         el.style.transform = 'translateY(-50%)';
                     }
@@ -330,6 +341,7 @@
 
         function setupEventListeners() {
             window.addEventListener('resize', updateLayout);
+            // Listen for DPI changes
             matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener("change", updateLayout);
             
             if (window.visualViewport) {
