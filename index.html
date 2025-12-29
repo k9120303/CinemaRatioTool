@@ -9,7 +9,6 @@
             --bg-glass: rgba(18, 18, 18, 0.96);
             --accent: #007aff;
             --text: #ffffff;
-            /* Safe area variables */
             --safe-top: env(safe-area-inset-top, 20px);
             --safe-right: env(safe-area-inset-right, 20px);
             --safe-bottom: env(safe-area-inset-bottom, 20px);
@@ -44,12 +43,10 @@
             box-sizing: border-box;
             display: none;
             
-            /* Default Centering Logic (will be overridden by JS when full-width/height) */
+            /* Center alignment (will be overridden when full width/height) */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            
-            /* Removed box-shadow to fix the "double border" issue */
         }
 
         .label {
@@ -237,21 +234,23 @@
                     dpr = Math.round(dpr * 4) / 4; 
                 }
 
-                // 2. Get Drawing Dimensions (Use Window inner sizes for overlay drawing)
-                const drawingW = window.innerWidth;
-                const drawingH = window.innerHeight;
-                
-                // 3. Stats Calculation (Logic from previous step)
-                const statsW = document.documentElement.clientWidth;
-                const statsH = document.documentElement.clientHeight;
+                // 2. Get Dimensions
+                // Use window.innerWidth for BOTH drawing and stats on mobile
+                // This ensures consistency and captures the full visual width
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
 
+                // 3. Stats Calculation (Smart Split)
                 function getCorrectedSize(logicalVal) {
                     const rawPhys = logicalVal * dpr;
                     const isMobile = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
                     
                     if (isMobile) {
-                        return Math.round(rawPhys);
+                        // [Mobile] Use Math.ceil to aggressive capture the "missing" pixels
+                        // This fixes the "less by 2" issue on high DPI screens
+                        return Math.ceil(rawPhys);
                     } else {
+                        // [Desktop] Keep the Floor + Even logic for Windows
                         let phys = Math.floor(rawPhys);
                         if (phys > 1000 && phys % 2 !== 0) {
                             return phys - 1;
@@ -260,16 +259,17 @@
                     }
                 }
 
-                const displayW = getCorrectedSize(statsW);
-                const displayH = getCorrectedSize(statsH);
+                // Calculate Stats (using winW/winH now)
+                const displayW = getCorrectedSize(winW);
+                const displayH = getCorrectedSize(winH);
                 const currentRatio = displayW / displayH;
 
                 // 4. Update Info Tag
                 elements.infoTag.innerHTML = 
                     `Display: <strong>${displayW}x${displayH}</strong> | Ratio: <strong>${currentRatio.toFixed(2)}:1</strong>`;
 
-                // 5. Update Overlays (FIX for Edge Alignment)
-                const drawingRatio = drawingW / drawingH;
+                // 5. Update Overlays (Using 100% + Reset Transform)
+                const drawingRatio = winW / winH;
                 
                 configs.forEach((cfg, i) => {
                     const el = document.getElementById(`box-${i}`);
@@ -279,30 +279,25 @@
                     }
                     el.style.display = 'block';
                     
-                    // Reset positioning styles first to avoid conflicts
-                    el.style.top = ''; 
-                    el.style.left = '';
+                    // Reset all positioning
+                    el.style.top = ''; el.style.left = '';
                     el.style.transform = '';
+                    el.style.width = ''; el.style.height = '';
                     
                     if (drawingRatio > cfg.ratio) {
-                        // Screen is wider than target -> Height is full
-                        // FIX: Pin to top/bottom, center horizontally
-                        el.style.height = '100%'; 
-                        el.style.top = '0'; // Pin top
-                        el.style.width = `${drawingH * cfg.ratio}px`;
-                        
-                        // Center Horizontally
+                        // Screen is wider -> Height is 100%
+                        el.style.height = '100%';
+                        el.style.top = '0';
+                        el.style.width = `${winH * cfg.ratio}px`;
+                        // Center horizontally
                         el.style.left = '50%';
-                        el.style.transform = 'translateX(-50%)'; 
-                        
+                        el.style.transform = 'translateX(-50%)';
                     } else {
-                        // Screen is taller than target -> Width is full
-                        // FIX: Pin to left/right, center vertically
+                        // Screen is taller -> Width is 100%
                         el.style.width = '100%';
-                        el.style.left = '0'; // Pin left
-                        el.style.height = `${drawingW / cfg.ratio}px`;
-                        
-                        // Center Vertically
+                        el.style.left = '0';
+                        el.style.height = `${winW / cfg.ratio}px`;
+                        // Center vertically
                         el.style.top = '50%';
                         el.style.transform = 'translateY(-50%)';
                     }
