@@ -43,11 +43,13 @@
             pointer-events: none;
             box-sizing: border-box;
             display: none;
+            
+            /* Default Centering Logic (will be overridden by JS when full-width/height) */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            /* Sharper borders */
-            box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+            
+            /* Removed box-shadow to fix the "double border" issue */
         }
 
         .label {
@@ -226,7 +228,7 @@
             elements.ratioList.appendChild(item);
         }
 
-        // --- Core Logic (Perfect Edge + Accurate Stats) ---
+        // --- Core Logic ---
         function updateLayout() {
             window.requestAnimationFrame(() => {
                 // 1. Force DPR correction
@@ -235,16 +237,14 @@
                     dpr = Math.round(dpr * 4) / 4; 
                 }
 
-                // 2. Get Viewport Dimensions (For drawing)
-                // Use window.innerWidth/Height to get full "bleeding edge" dimensions on mobile
+                // 2. Get Drawing Dimensions (Use Window inner sizes for overlay drawing)
                 const drawingW = window.innerWidth;
                 const drawingH = window.innerHeight;
                 
-                // Use clientWidth for stats calculation to be consistent with document flow
+                // 3. Stats Calculation (Logic from previous step)
                 const statsW = document.documentElement.clientWidth;
                 const statsH = document.documentElement.clientHeight;
 
-                // 3. Stats Calculation (Mobile Round / Desktop Floor+Even)
                 function getCorrectedSize(logicalVal) {
                     const rawPhys = logicalVal * dpr;
                     const isMobile = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
@@ -260,7 +260,6 @@
                     }
                 }
 
-                // Calculate stats
                 const displayW = getCorrectedSize(statsW);
                 const displayH = getCorrectedSize(statsH);
                 const currentRatio = displayW / displayH;
@@ -269,8 +268,7 @@
                 elements.infoTag.innerHTML = 
                     `Display: <strong>${displayW}x${displayH}</strong> | Ratio: <strong>${currentRatio.toFixed(2)}:1</strong>`;
 
-                // 5. Update Overlays (Using 100% for perfect fit)
-                // We use the aspect ratio from drawing dimensions to decide fit
+                // 5. Update Overlays (FIX for Edge Alignment)
                 const drawingRatio = drawingW / drawingH;
                 
                 configs.forEach((cfg, i) => {
@@ -281,15 +279,32 @@
                     }
                     el.style.display = 'block';
                     
-                    // KEY FIX: Use '100%' instead of calculated pixels for the filling side
+                    // Reset positioning styles first to avoid conflicts
+                    el.style.top = ''; 
+                    el.style.left = '';
+                    el.style.transform = '';
+                    
                     if (drawingRatio > cfg.ratio) {
                         // Screen is wider than target -> Height is full
-                        el.style.height = '100%';
+                        // FIX: Pin to top/bottom, center horizontally
+                        el.style.height = '100%'; 
+                        el.style.top = '0'; // Pin top
                         el.style.width = `${drawingH * cfg.ratio}px`;
+                        
+                        // Center Horizontally
+                        el.style.left = '50%';
+                        el.style.transform = 'translateX(-50%)'; 
+                        
                     } else {
-                        // Screen is narrower than target -> Width is full
+                        // Screen is taller than target -> Width is full
+                        // FIX: Pin to left/right, center vertically
                         el.style.width = '100%';
+                        el.style.left = '0'; // Pin left
                         el.style.height = `${drawingW / cfg.ratio}px`;
+                        
+                        // Center Vertically
+                        el.style.top = '50%';
+                        el.style.transform = 'translateY(-50%)';
                     }
                 });
             });
